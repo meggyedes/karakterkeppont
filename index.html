@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="hu">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#100b12">
+<title>Karakterképpont · Egy levél neked</title>
+<style>
+:root{color-scheme:dark;--ink:#f7e8df;--muted:#be9eaa;--gold:#f3b991;--line:#442935}
+*{box-sizing:border-box}
+body{margin:0;min-height:100svh;background:radial-gradient(ellipse at 50% 0,#321923 0,transparent 60%),#100b12;color:var(--ink);font-family:system-ui,sans-serif}
+main{width:min(760px,100% - 32px);margin:auto;padding:clamp(25px,6vh,64px) 0 24px;text-align:center}
+.kicker,footer,.panel-bar{font:600 11px/1.3 ui-monospace,monospace;letter-spacing:.19em;text-transform:uppercase;color:var(--muted)}
+.kicker{color:var(--gold);margin:0}
+h1{font:400 clamp(45px,8vw,84px)/1 Georgia,serif;letter-spacing:-.065em;margin:12px 0 9px}
+.intro{margin:0 0 24px;color:var(--muted);font-size:14px}
+.panel{overflow:hidden;border:1px solid var(--line);border-radius:16px;background:#120c15;box-shadow:0 18px 60px #0007}
+.panel-bar{padding:13px 16px;border-bottom:1px solid #38232d;display:flex;align-items:center;justify-content:space-between;text-align:left;gap:8px}
+.lights{display:inline-flex;gap:5px;margin-right:12px;vertical-align:2px}
+.lights i{width:5px;height:5px;border-radius:50%;background:#a96064}.lights i:nth-child(2){opacity:.65}.lights i:nth-child(3){opacity:.35}
+#state{color:var(--gold)}
+canvas{display:block;width:100%;height:auto;cursor:pointer;touch-action:manipulation}
+canvas[data-idle="false"]{cursor:default}
+.controls{min-height:109px;display:grid;justify-items:center;align-content:start;padding:0 16px 17px;gap:12px}
+#message{font:italic 24px Georgia,serif;margin:0;color:#f8d1d7}
+button{appearance:none;border:1px solid #f6c09c;border-radius:40px;padding:11px 20px;color:#26131d;background:#f2b891;font:700 13px system-ui;cursor:pointer}
+button:hover{background:#ffcfaa}button:focus-visible{outline:2px solid white;outline-offset:4px}button[aria-disabled=true]{opacity:.75;cursor:default}
+footer{margin-top:19px;font-size:10px}
+@media(max-width:420px){.panel-bar{letter-spacing:.1em;font-size:10px}.intro{margin-bottom:17px}}
+</style>
+</head>
+<body>
+<main>
+  <p class="kicker">✦ &nbsp; Digitális levél &nbsp; ✦</p>
+  <h1>Egy levél neked</h1>
+  <p class="intro">A borítékban egy apró meglepetés vár.</p>
+  <section class="panel" aria-label="Animált levél">
+    <div class="panel-bar"><span><span class="lights" aria-hidden="true"><i></i><i></i><i></i></span>karakterkeppont / 01</span><span id="state" role="status">Lezárva</span></div>
+    <canvas id="art" width="920" height="480" data-idle="true" role="img" aria-label="Aranyszínű boríték, közepén rózsaszín szívvel"></canvas>
+    <div class="controls">
+      <p id="message" hidden>Egy rózsa neked. Gondoltam rád.</p>
+      <button id="action" type="button">Felbontom &nbsp;↗</button>
+    </div>
+  </section>
+  <footer>Karakterekből rajzolva</footer>
+</main>
+<script>
+const canvas = document.querySelector("#art");
+const ctx = canvas.getContext("2d");
+const action = document.querySelector("#action");
+const state = document.querySelector("#state");
+const message = document.querySelector("#message");
+const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
+
+const columns = 92;
+const rows = 40;
+const cellWidth = 10;
+const cellHeight = 12;
+const center = 45.5;
+const paper = [];
+const rose = [];
+const stars = [];
+const sparks = [];
+let seed = 143;
+let phase = "sealed";
+let startedAt = 0;
+let frameId;
+
+function random() {
+  seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+  return seed / 4294967296;
+}
+
+function glyph(chars) {
+  return chars[Math.floor(random() * chars.length)];
+}
+
+function draw(x, y, char, color, opacity = 1) {
+  ctx.globalAlpha = Math.max(0, Math.min(1, opacity));
+  ctx.fillStyle = color;
+  ctx.fillText(char, x * cellWidth + cellWidth / 2, y * cellHeight + cellHeight / 2);
+}
+
+function ellipse(x, y, cx, cy, rx, ry, tilt = 0) {
+  const dx = x - cx;
+  const dy = y - cy;
+  return ((dx * Math.cos(tilt) + dy * Math.sin(tilt)) / rx) ** 2
+    + ((dy * Math.cos(tilt) - dx * Math.sin(tilt)) / ry) ** 2;
+}
+
+const petals = [
+  [45, 13, 11, 8.9, 0, "#a8264c"],
+  [40, 10, 7.3, 5.4, .45, "#e04e6a"],
+  [51, 10, 7.1, 5.3, -.39, "#c13058"],
+  [46, 8.5, 7.2, 4.3, -.16, "#ef6580"],
+  [44.5, 9.2, 4.6, 2.8, .13, "#982041"],
+  [46, 9, 2.8, 1.35, -.23, "#ff9ca6"],
+  [51, 13.8, 6.8, 4, -.58, "#e04465"],
+  [40, 14.5, 6.9, 3.6, .61, "#ca3155"],
+  [46, 17, 7.8, 3.6, -.13, "#bc244b"],
+];
+
+for (let y = 0; y < rows; y++) {
+  for (let x = 0; x < columns; x++) {
+    const dx = x - center;
+    if (x >= 17 && x <= 74 && y >= 9 && y <= 32) {
+      const border = x === 17 || x === 74 || y === 9 || y === 32;
+      const fold = Math.abs(y - (24 - Math.abs(dx) * .46)) < .95
+        || Math.abs(y - (20 + Math.abs(dx) * .43)) < .6;
+      const hx = dx / 5.5;
+      const hy = (22 - y) / 4.5;
+      const seal = (hx * hx + hy * hy - 1) ** 3 - hx * hx * hy ** 3 < 0;
+      paper.push({
+        x, y,
+        char: seal ? glyph("@%#") : border ? glyph("/+=") : fold ? glyph("/:.") : glyph("#&%@+"),
+        color: seal ? glyph(["#ff91ae", "#ff5d89", "#d74e75"]) : fold ? "#634039"
+          : glyph(["#efb089", "#ce8c69", "#a86651", "#e4a27d"]),
+        ignition: Math.hypot(dx * .6, y - 22) * .079 + random() * .16,
+        vx: dx * .43 + (random() - .5) * 13,
+        vy: -5 - random() * 16,
+      });
+    }
+
+    let pixel;
+    const stemX = 46 - (y - 20) * .17;
+    if (y >= 19 && y <= 36 && Math.abs(x - stemX) < 1.12) {
+      pixel = {char: glyph("|/!"), color: "#86ac79"};
+    }
+    const leaf = Math.min(ellipse(x, y, 39, 27, 7, 2.3, .37),
+                          ellipse(x, y, 51, 29, 6, 2.1, -.52));
+    if (leaf < 1) {
+      pixel = {char: glyph(leaf < .55 ? "%#&" : "+:."), color: leaf < .55 ? "#75ad87" : "#527d65"};
+    }
+    for (const [cx, cy, rx, ry, tilt, color] of petals) {
+      const edge = ellipse(x, y, cx, cy, rx, ry, tilt);
+      if (edge < 1) {
+        pixel = {char: glyph(edge < .69 ? "@#%&" : "o*+:"), color: edge > .83 ? "#fa8295" : color};
+      }
+    }
+    if (pixel) rose.push({x, y, ...pixel, reveal: random() * .43 + Math.abs(dx) * .009 + y * .015});
+  }
+}
+
+for (let i = 0; i < 104; i++) {
+  stars.push({x: random() * columns, y: random() * rows, char: glyph("...+·"),
+    offset: random() * 7, color: glyph(["#ffb899", "#c4809d", "#9d90c6"])});
+}
+for (let i = 0; i < 100; i++) {
+  sparks.push({x: center + (random() - .5) * 10, y: 22, vx: (random() - .5) * 62,
+    vy: -5 - random() * 29, delay: random() * 1.6, life: .35 + random() * .75});
+}
+
+function render(now) {
+  const elapsed = (now - startedAt) / 1000;
+  ctx.globalAlpha = 1;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  const glow = ctx.createRadialGradient(460, 232, 12, 460, 232, 340);
+  glow.addColorStop(0, phase === "sealed" ? "#29191f" : "#331420");
+  glow.addColorStop(1, "#120c15");
+  ctx.fillStyle = glow;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.font = "bold 15px ui-monospace, monospace";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+
+  for (const star of stars) {
+    const pulse = reducedMotion.matches ? .43 : .32 + .22 * Math.sin(now / 510 + star.offset);
+    draw(star.x, star.y, star.char, star.color, pulse);
+  }
+
+  if (phase !== "open") {
+    for (const cell of paper) {
+      const age = phase === "sealed" ? -1 : elapsed - cell.ignition;
+      if (age < 0) {
+        draw(cell.x, cell.y, cell.char, cell.color);
+      } else if (age < .68) {
+        draw(cell.x + cell.vx * age, cell.y + cell.vy * age + 13 * age ** 2,
+          age < .22 ? "*" : ".", age < .22 ? "#ffcf83" : "#ff595c", 1 - age / .68);
+      }
+    }
+  }
+
+  if (phase === "burning") {
+    for (const spark of sparks) {
+      const age = elapsed - spark.delay;
+      if (age >= 0 && age < spark.life) {
+        draw(spark.x + spark.vx * age, spark.y + spark.vy * age + 9 * age ** 2,
+          age < .24 ? "+" : ".", "#ff9b79", 1 - age / spark.life);
+      }
+    }
+  }
+
+  if (phase !== "sealed") {
+    for (const pixel of rose) {
+      const opacity = phase === "open" ? 1 : (elapsed - 1.32 - pixel.reveal) * 3.8;
+      if (opacity > 0) draw(pixel.x, pixel.y, pixel.char, pixel.color, opacity);
+    }
+  }
+}
+
+function setPhase(next) {
+  phase = next;
+  canvas.dataset.idle = String(next === "sealed");
+  action.setAttribute("aria-disabled", String(next === "burning"));
+  action.textContent = {sealed: "Felbontom ↗", burning: "Épp felnyílik…", open: "Újrajátszás ↻"}[next];
+  state.textContent = {sealed: "Lezárva", burning: "Felbontás", open: "Felbontva"}[next];
+  message.hidden = next !== "open";
+  if (next === "open") canvas.setAttribute("aria-label", "Vörös rózsa zöld levelekkel, karakterekből rajzolva");
+  if (next === "sealed") canvas.setAttribute("aria-label", "Aranyszínű boríték, közepén rózsaszín szívvel");
+}
+
+function tick(now) {
+  if (phase === "burning" && (now - startedAt > 2850 || reducedMotion.matches)) setPhase("open");
+  render(now);
+  if (!reducedMotion.matches) frameId = requestAnimationFrame(tick);
+}
+
+function play() {
+  if (phase === "burning") return;
+  cancelAnimationFrame(frameId);
+  startedAt = performance.now();
+  setPhase(reducedMotion.matches ? "open" : "burning");
+  tick(startedAt);
+}
+
+action.addEventListener("click", play);
+canvas.addEventListener("click", () => {
+  if (phase === "sealed") play();
+});
+reducedMotion.addEventListener("change", () => {
+  cancelAnimationFrame(frameId);
+  tick(performance.now());
+});
+tick(performance.now());
+</script>
+</body>
+</html>
