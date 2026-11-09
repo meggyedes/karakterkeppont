@@ -1,64 +1,97 @@
 <!doctype html>
-<html lang="hu">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#09070b">
-<title>ASCII-kamera · Karakterképpont</title>
+<title>ASCII Camera | Karakterképpont</title>
 <style>
 [hidden]{display:none!important}
-:root{color-scheme:dark;background:#09070b;color:#fcece9;font-family:system-ui,sans-serif}
+:root{color-scheme:dark;--bg:#101211;--panel:#191c19;--line:#333a32;--ink:#f4f5ed;--muted:#a9b1a5;--accent:#d7f5a9;--mono:ui-monospace,SFMono-Regular,Consolas,monospace;background:var(--bg);color:var(--ink);font-family:system-ui,sans-serif}
 *{box-sizing:border-box}
 body{margin:0}
-main{width:min(820px,100% - 32px);margin:auto;padding:24px 0 36px}
-header{margin-bottom:18px;text-align:center}
-.secondary{color:#d2a8b5;font-size:13px;text-underline-offset:4px}
-h1{margin:12px 0 5px;font:400 clamp(38px,7vw,66px)/1 Georgia,serif;letter-spacing:-.055em}
-p{margin:0;color:#c7a6b2;font-size:14px}
-.stage{position:relative;min-height:170px;display:grid;place-items:center;background:#100c13;border:1px solid #38252e;border-radius:12px;overflow:hidden;margin-bottom:15px}
-.stage:has(canvas:not([hidden])){background:#09070b}
-video,canvas{display:block;width:100%;height:auto;max-height:63svh;object-fit:contain}
+main{width:min(1040px,100% - 48px);margin:auto;padding-bottom:26px}
+.masthead,.screen-bar,.foot{display:flex;justify-content:space-between;align-items:center;gap:12px;font:600 11px/1.5 var(--mono);letter-spacing:.11em;text-transform:uppercase}
+.masthead{min-height:61px;border-bottom:1px solid var(--line)}
+.brand{display:flex;gap:10px;align-items:center}
+.brand-mark{display:grid;place-items:center;width:26px;height:26px;border-radius:5px;background:var(--accent);color:#172113;font:800 16px var(--mono)}
+.privacy,.foot,.screen-bar{color:var(--muted)}
+.intro{margin:clamp(24px,5vh,52px) 0 20px}
+h1{font-size:clamp(42px,8vw,83px);font-weight:640;line-height:.96;letter-spacing:-.078em;margin:0 0 12px}
+p{margin:0;color:var(--muted);font-size:14px;line-height:1.5}
+.studio{border:1px solid var(--line);border-radius:16px;background:var(--panel);overflow:hidden}
+.screen-bar{min-height:42px;padding:8px 16px}
+.screen-bar span:last-child{display:flex;align-items:center;gap:8px}
+.signal{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--accent);box-shadow:0 0 11px #d7f5a955}
+.stage{position:relative;min-height:clamp(230px,44vh,465px);display:grid;place-items:center;background:#09070b;overflow:hidden;border-block:1px solid var(--line)}
+video,canvas{display:block;width:100%;height:auto;max-height:65svh;object-fit:contain}
 video[data-mirror=true]{transform:scaleX(-1)}
-.placeholder{text-align:center;padding:22px;color:#a17d8a}
-.placeholder span{display:block;margin-bottom:7px;color:#ffb5c9;font:700 26px ui-monospace,monospace;letter-spacing:.16em}
-.controls{display:flex;align-items:center;gap:10px 16px;flex-wrap:wrap}
-button{appearance:none;border:1px solid #ffc1d0;border-radius:40px;padding:10px 17px;background:#ffc1d0;color:#24111c;font:650 13px system-ui;cursor:pointer}
-button:hover{background:#ffdae3}
+.placeholder{width:100%;height:100%;display:grid;align-content:center;justify-items:center;text-align:center;padding:30px 16px;background:radial-gradient(ellipse at 50% 47%,#21291d 0%,#101410 66%);position:relative}
+.placeholder::before{content:"";position:absolute;inset:0;background:radial-gradient(circle,#b7c6ad38 1px,transparent 1px) center/15px 15px;mask-image:radial-gradient(ellipse,#000,transparent 77%);pointer-events:none}
+.placeholder>*{position:relative}
+.reticle{display:block;width:74px;height:62px;margin-bottom:12px;color:var(--accent)}
+.empty-title{color:var(--ink);font-size:16px;font-weight:650;margin-bottom:4px}
+.empty-symbols{margin-top:13px;color:#b9c9a8;font:12px var(--mono);letter-spacing:.26em}
+.controls{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:13px 15px}
+#playback{padding-top:0}
+button{appearance:none;min-height:43px;border:1px solid var(--accent);border-radius:7px;padding:8px 14px;background:var(--accent);color:#172113;font:680 13px system-ui;cursor:pointer;transition:background-color .15s}
+button:hover{background:#e8ffd0}
 button:disabled{opacity:.55;cursor:default}
-button.secondary{border:0;border-radius:0;padding:7px 0;background:none;font-weight:500;text-decoration:underline}
-button:focus-visible{outline:2px solid #ffc1d0;outline-offset:4px}
+button.secondary{border-color:#414a40;background:#232923;color:var(--ink)}
+button.secondary:hover,button.secondary[aria-pressed=true]{background:#333d30;border-color:#8d9d83}
+button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
 .media-source{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
-#playback{margin-top:12px}#seek{min-width:95px;flex:1;accent-color:#ffc1d0}
-#status{margin-top:12px;min-height:1.4em}
+#seek{min-width:95px;flex:1;accent-color:var(--accent)}
+#status{min-height:38px;border-top:1px solid var(--line);padding:9px 15px;font:11px/1.6 var(--mono)}
+.foot{padding-top:15px;font-size:10px}
+@media(max-width:600px){main{width:calc(100% - 24px)}.masthead{min-height:50px}.screen-bar{padding-inline:12px}.controls{padding-inline:10px}.stage{min-height:clamp(205px,40svh,340px)}button{padding-inline:10px}}
+@media(prefers-reduced-motion:reduce){button{transition:none}}
 </style>
 </head>
 <body>
 <main>
-  <header>
-    <h1>ASCII-kamera</h1>
-    <p>Fotók, videók és élő kamerakép karakterekből.</p>
+  <div class="masthead">
+    <span class="brand"><span class="brand-mark" aria-hidden="true">#</span> Karakterképpont</span>
+    <span class="privacy">Local processing</span>
+  </div>
+  <header class="intro">
+    <h1>ASCII Camera</h1>
+    <p>Capture a photo, turn on live ASCII, or play a video in characters.</p>
   </header>
+  <section class="studio" aria-label="Capture studio">
+  <div class="screen-bar"><span>Viewfinder</span><span><i class="signal" aria-hidden="true"></i><span id="view-mode">Standby</span></span></div>
   <div class="stage">
-    <p id="placeholder" class="placeholder"><span aria-hidden="true">[ # @ ]</span>Itt jelenik meg a kép.</p>
-    <video id="preview" autoplay muted playsinline hidden aria-label="A kamera élőképe"></video>
+    <div id="placeholder" class="placeholder">
+      <svg class="reticle" viewBox="0 0 74 62" fill="none" aria-hidden="true">
+        <path d="M3 17V4h14m40 0h14v13m0 28v13H57m-40 0H3V45" stroke="currentColor" stroke-width="1.5"/>
+        <circle cx="37" cy="31" r="10" stroke="currentColor" stroke-width="1.5"/>
+        <circle cx="37" cy="31" r="2" fill="currentColor"/>
+      </svg>
+      <p class="empty-title">Ready to capture</p>
+      <p>Open your camera or choose a photo or video.</p>
+      <span class="empty-symbols" aria-hidden="true">[ { # % * + £ ¥ } ]</span>
+    </div>
+    <video id="preview" autoplay muted playsinline hidden aria-label="Live camera preview"></video>
     <video id="clip" muted playsinline preload="auto" class="media-source" aria-hidden="true"></video>
-    <canvas id="result" hidden role="img" aria-label="Színes karakterkép"></canvas>
+    <canvas id="result" hidden role="img" aria-label="Color character art"></canvas>
   </div>
   <div class="controls">
-    <button id="camera" type="button">Kamera megnyitása</button>
-    <button id="capture" type="button" hidden>Fotó készítése</button>
-    <button id="live-art" type="button" class="secondary" aria-pressed="false" hidden>Élő ASCII</button>
-    <button id="switch" type="button" class="secondary" hidden>Kameraváltás</button>
-    <button id="cancel" type="button" class="secondary" hidden>Bezárás</button>
-    <button id="choose" type="button" class="secondary">Kép vagy videó kiválasztása</button>
+    <button id="camera" type="button">Open camera</button>
+    <button id="capture" type="button" hidden>Take photo</button>
+    <button id="live-art" type="button" class="secondary" aria-pressed="false" hidden>Live ASCII</button>
+    <button id="switch" type="button" class="secondary" hidden>Switch camera</button>
+    <button id="cancel" type="button" class="secondary" hidden>Close</button>
+    <button id="choose" type="button" class="secondary">Open photo or video</button>
     <input id="file" type="file" accept="image/*,video/*,.mp4,.webm,.mov,.m4v" hidden>
   </div>
   <div id="playback" class="controls" hidden>
-    <button id="play" type="button" disabled>Lejátszás</button>
-    <input id="seek" type="range" min="0" max="0" step="0.01" value="0" aria-label="Videó pozíciója" disabled>
-    <button id="sound" type="button" class="secondary" aria-pressed="false">Hang be</button>
+    <button id="play" type="button" disabled>Play</button>
+    <input id="seek" type="range" min="0" max="0" step="0.01" value="0" aria-label="Video position" disabled>
+    <button id="sound" type="button" class="secondary" aria-pressed="false">Sound on</button>
   </div>
-  <p id="status" role="status">A képek és videók a böngésződben maradnak.</p>
+  <p id="status" role="status">Photos and videos stay in your browser.</p>
+  </section>
+  <footer class="foot"><span>Photo / Video / Live</span><span>Character studio</span></footer>
 </main>
 <script>
 const preview = document.querySelector("#preview");
@@ -69,6 +102,7 @@ const play = document.querySelector("#play");
 const seek = document.querySelector("#seek");
 const sound = document.querySelector("#sound");
 const result = document.querySelector("#result");
+const viewMode = document.querySelector("#view-mode");
 const placeholder = document.querySelector("#placeholder");
 const camera = document.querySelector("#camera");
 const capture = document.querySelector("#capture");
@@ -94,26 +128,29 @@ let lastTime = -1;
 let toneRange;
 let grid;
 const fontFamily = '"DejaVu Sans Mono", "Lucida Console", monospace';
-const palette = " .·˙•°◦,:;!?^~–—_+−=×÷±≠≈≡∴∵∞∑∫√∆∇∂<>‹›«»/\\|()[]{}〈〉┆┊─│┌┐└┘├┤┬┴┼╋╱╲╳◇◆○●□■△▲▽▼☆★✦✧✶✷✹░▒▓▌▐▖▗▚▞▙▟█#%&@MW08XZ";
+const keyboardSymbols = "[]{}#%^*+=_-\\|~<>$£¥•.,?!'";
+const palette = new Set(keyboardSymbols + " .·˙•°◦,:;!?^~–—_+−=×÷±≠≈≡∴∵∞∑∫√∆∇∂<>‹›«»/\\|()[]{}〈〉┆┊─│┌┐└┘├┤┬┴┼╋╱╲╳◇◆○●□■△▲▽▼☆★✦✧✶✷✹░▒▓▌▐▖▗▚▞▙▟█#%&@MW08XZ");
 
 function show(next) {
   mode = next;
   const live = mode === "live";
   const waiting = mode === "waiting";
   const video = mode === "video";
+  viewMode.textContent = video ? "ASCII video" : live ? (liveAscii ? "Live ASCII" : "Live camera")
+    : waiting ? "Connecting" : hasResult ? "ASCII photo" : "Standby";
   preview.hidden = !live;
   preview.classList.toggle("media-source", liveAscii);
   result.hidden = live ? !liveAscii : video ? !clip.videoWidth : !hasResult;
   placeholder.hidden = !preview.hidden || !result.hidden;
   camera.hidden = live;
   camera.disabled = waiting;
-  camera.textContent = hasResult ? "Új fotó" : "Kamera megnyitása";
+  camera.textContent = hasResult ? "New photo" : "Open camera";
   capture.hidden = !live;
   liveArt.hidden = !live;
   liveArt.setAttribute("aria-pressed", String(liveAscii));
-  liveArt.textContent = liveAscii ? "Normál előnézet" : "Élő ASCII";
+  liveArt.textContent = liveAscii ? "Standard preview" : "Live ASCII";
   switchCamera.hidden = !live;
-  switchCamera.textContent = facing === "user" ? "Hátlapi kamera" : "Előlapi kamera";
+  switchCamera.textContent = facing === "user" ? "Rear camera" : "Front camera";
   cancel.hidden = !live && !waiting && !video;
   choose.hidden = live || waiting;
   playback.hidden = !video;
@@ -165,7 +202,7 @@ async function startStream(target, exact, current) {
     if (current !== request) return;
     stopCamera();
     show("idle");
-    statusLine.textContent = "A kamera leállt. Újra megnyithatod vagy választhatsz egy képet.";
+    statusLine.textContent = "Camera stopped. Reopen it or choose a file.";
   }, {once: true});
   preview.dataset.mirror = String(facing === "user");
   preview.srcObject = stream;
@@ -186,7 +223,7 @@ async function startStream(target, exact, current) {
 
 async function openCamera(target = facing, switching = false) {
   if (!navigator.mediaDevices?.getUserMedia) {
-    statusLine.textContent = "Itt nem érhető el a kamera. A Kép kiválasztása gombbal egy meglévő fotót használhatsz.";
+    statusLine.textContent = "Camera access is unavailable here. You can still open a photo or video.";
     return;
   }
 
@@ -200,10 +237,10 @@ async function openCamera(target = facing, switching = false) {
   let current = request;
   show("waiting");
   cancel.focus();
-  statusLine.textContent = switching ? "Kameraváltás…" : "Engedélyezd a kamera használatát a böngészőben.";
+  statusLine.textContent = switching ? "Switching cameras…" : "Allow camera access in your browser.";
   try {
     if (await startStream(target, switching, current)) {
-      statusLine.textContent = facing === "environment" ? "Hátlapi kamera" : "Előlapi kamera";
+      statusLine.textContent = facing === "environment" ? "Rear camera" : "Front camera";
     }
     return;
   } catch (error) {
@@ -216,8 +253,8 @@ async function openCamera(target = facing, switching = false) {
       try {
         if (await startStream(previous, false, current)) {
           statusLine.textContent = target === "environment"
-            ? "A hátlapi kamera nem érhető el ezen az eszközön."
-            : "Az előlapi kamera nem érhető el ezen az eszközön.";
+            ? "The rear camera is unavailable on this device."
+            : "The front camera is unavailable on this device.";
         }
         return;
       } catch {
@@ -229,8 +266,8 @@ async function openCamera(target = facing, switching = false) {
     show("idle");
     camera.focus();
     statusLine.textContent = error.name === "NotAllowedError"
-      ? "A kameraengedély hiányzik. Engedélyezd a böngészőben, vagy válassz egy képet."
-      : "A kamera most nem indítható. Próbáld újra, vagy válassz egy képet.";
+      ? "Camera permission is off. Allow access in your browser or choose a file."
+      : "Could not start the camera. Try again or choose a file.";
   }
 }
 
@@ -353,7 +390,7 @@ function finishPhoto(source, width, height, mirror = false) {
   drawAscii(source, width, height, mirror);
   hasResult = true;
   show("idle");
-  statusLine.textContent = "Elkészült az ASCII-kép.";
+  statusLine.textContent = "ASCII photo ready.";
   camera.focus();
 }
 
@@ -382,16 +419,16 @@ function startRendering() {
 function selectVideo(selected) {
   hasResult = false;
   play.disabled = true;
-  play.textContent = "Lejátszás";
+  play.textContent = "Play";
   seek.disabled = true;
   seek.value = 0;
   clipUrl = URL.createObjectURL(selected);
   clip.muted = true;
   sound.setAttribute("aria-pressed", "false");
-  sound.textContent = "Hang be";
+  sound.textContent = "Sound on";
   clip.src = clipUrl;
   show("video");
-  statusLine.textContent = "Videó betöltése…";
+  statusLine.textContent = "Loading video…";
   clip.play().catch(() => {});
 }
 
@@ -405,7 +442,7 @@ capture.addEventListener("click", () => {
     finishPhoto(preview, preview.videoWidth, preview.videoHeight, preview.dataset.mirror === "true");
   } catch {
     show("idle");
-    statusLine.textContent = "A fotót nem sikerült feldolgozni. Készíthetsz egy újat.";
+    statusLine.textContent = "Could not process the photo. Try taking another one.";
     camera.focus();
   } finally {
     stopCamera();
@@ -418,7 +455,7 @@ cancel.addEventListener("click", () => {
   releaseClip();
   liveAscii = false;
   show("idle");
-  statusLine.textContent = wasVideo ? "A videó bezárva." : "A kamera ki van kapcsolva.";
+  statusLine.textContent = wasVideo ? "Video closed." : "Camera closed.";
   camera.focus();
 });
 choose.addEventListener("click", () => file.click());
@@ -443,7 +480,7 @@ file.addEventListener("change", async () => {
     await image.decode();
     if (current === request) finishPhoto(image, image.naturalWidth, image.naturalHeight);
   } catch {
-    if (current === request) statusLine.textContent = "Ez a kép nem nyitható meg. Próbálj egy JPG- vagy PNG-fájlt.";
+    if (current === request) statusLine.textContent = "Could not open this image. Try a JPG or PNG file.";
   } finally {
     URL.revokeObjectURL(url);
   }
@@ -467,30 +504,30 @@ clip.addEventListener("loadeddata", () => {
   play.disabled = false;
   seek.disabled = !Number.isFinite(clip.duration);
   seek.max = seek.disabled ? 0 : clip.duration;
-  statusLine.textContent = "ASCII-videó";
+  statusLine.textContent = "ASCII video ready.";
 });
 clip.addEventListener("playing", () => {
   if (mode !== "video") return;
-  play.textContent = "Szünet";
+  play.textContent = "Pause";
   startRendering();
 });
 clip.addEventListener("pause", () => {
   if (mode !== "video") return;
   stopRendering();
-  play.textContent = "Lejátszás";
+  play.textContent = "Play";
 });
 clip.addEventListener("ended", () => {
   if (mode !== "video") return;
   stopRendering();
   drawVideoFrame(clip);
-  play.textContent = "Újrajátszás";
+  play.textContent = "Replay";
 });
 clip.addEventListener("error", () => {
   if (mode !== "video" || !clipUrl) return;
   stopRendering();
   releaseClip();
   show("idle");
-  statusLine.textContent = "A böngésző nem tudta lejátszani ezt a videót. Próbálj egy MP4- vagy WebM-fájlt.";
+  statusLine.textContent = "Your browser could not play this video. Try an MP4 or WebM file.";
 });
 clip.addEventListener("seeked", () => {
   if (mode !== "video") return;
@@ -508,13 +545,13 @@ play.addEventListener("click", () => {
   }
   if (clip.ended) clip.currentTime = 0;
   clip.play().catch(() => {
-    statusLine.textContent = "A videó nem indult el. Próbáld újra.";
+    statusLine.textContent = "The video could not start. Try again.";
   });
 });
 sound.addEventListener("click", () => {
   clip.muted = !clip.muted;
   sound.setAttribute("aria-pressed", String(!clip.muted));
-  sound.textContent = clip.muted ? "Hang be" : "Hang ki";
+  sound.textContent = clip.muted ? "Sound on" : "Sound off";
 });
 window.addEventListener("pagehide", () => {
   stopCamera();
