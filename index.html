@@ -15,7 +15,7 @@ header{margin-bottom:18px;text-align:center}
 .secondary{color:#d2a8b5;font-size:13px;text-underline-offset:4px}
 h1{margin:12px 0 5px;font:400 clamp(38px,7vw,66px)/1 Georgia,serif;letter-spacing:-.055em}
 p{margin:0;color:#c7a6b2;font-size:14px}
-.stage{min-height:170px;display:grid;place-items:center;background:#100c13;border:1px solid #38252e;border-radius:12px;overflow:hidden;margin-bottom:15px}
+.stage{position:relative;min-height:170px;display:grid;place-items:center;background:#100c13;border:1px solid #38252e;border-radius:12px;overflow:hidden;margin-bottom:15px}
 .stage:has(canvas:not([hidden])){background:#09070b}
 video,canvas{display:block;width:100%;height:auto;max-height:63svh;object-fit:contain}
 video[data-mirror=true]{transform:scaleX(-1)}
@@ -27,6 +27,8 @@ button:hover{background:#ffdae3}
 button:disabled{opacity:.55;cursor:default}
 button.secondary{border:0;border-radius:0;padding:7px 0;background:none;font-weight:500;text-decoration:underline}
 button:focus-visible{outline:2px solid #ffc1d0;outline-offset:4px}
+.media-source{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
+#playback{margin-top:12px}#seek{min-width:95px;flex:1;accent-color:#ffc1d0}
 #status{margin-top:12px;min-height:1.4em}
 </style>
 </head>
@@ -34,25 +36,38 @@ button:focus-visible{outline:2px solid #ffc1d0;outline-offset:4px}
 <main>
   <header>
     <h1>ASCII-kamera</h1>
-    <p>Egy fotó, karakterekből újrarajzolva.</p>
+    <p>Fotók, videók és élő kamerakép karakterekből.</p>
   </header>
   <div class="stage">
     <p id="placeholder" class="placeholder"><span aria-hidden="true">[ # @ ]</span>Itt jelenik meg a kép.</p>
     <video id="preview" autoplay muted playsinline hidden aria-label="A kamera élőképe"></video>
-    <canvas id="result" hidden role="img" aria-label="A fotóból készített színes ASCII-kép"></canvas>
+    <video id="clip" muted playsinline preload="auto" class="media-source" aria-hidden="true"></video>
+    <canvas id="result" hidden role="img" aria-label="Színes karakterkép"></canvas>
   </div>
   <div class="controls">
     <button id="camera" type="button">Kamera megnyitása</button>
     <button id="capture" type="button" hidden>Fotó készítése</button>
+    <button id="live-art" type="button" class="secondary" aria-pressed="false" hidden>Élő ASCII</button>
     <button id="switch" type="button" class="secondary" hidden>Kameraváltás</button>
     <button id="cancel" type="button" class="secondary" hidden>Bezárás</button>
-    <button id="choose" type="button" class="secondary">Kép kiválasztása</button>
-    <input id="file" type="file" accept="image/*" hidden>
+    <button id="choose" type="button" class="secondary">Kép vagy videó kiválasztása</button>
+    <input id="file" type="file" accept="image/*,video/*,.mp4,.webm,.mov,.m4v" hidden>
   </div>
-  <p id="status" role="status">A fotó a böngésződben marad.</p>
+  <div id="playback" class="controls" hidden>
+    <button id="play" type="button" disabled>Lejátszás</button>
+    <input id="seek" type="range" min="0" max="0" step="0.01" value="0" aria-label="Videó pozíciója" disabled>
+    <button id="sound" type="button" class="secondary" aria-pressed="false">Hang be</button>
+  </div>
+  <p id="status" role="status">A képek és videók a böngésződben maradnak.</p>
 </main>
 <script>
 const preview = document.querySelector("#preview");
+const clip = document.querySelector("#clip");
+const liveArt = document.querySelector("#live-art");
+const playback = document.querySelector("#playback");
+const play = document.querySelector("#play");
+const seek = document.querySelector("#seek");
+const sound = document.querySelector("#sound");
 const result = document.querySelector("#result");
 const placeholder = document.querySelector("#placeholder");
 const camera = document.querySelector("#camera");
@@ -66,30 +81,63 @@ const statusLine = document.querySelector("#status");
 const sample = document.createElement("canvas");
 const sampleContext = sample.getContext("2d", {willReadFrequently: true});
 const resultContext = result.getContext("2d");
-const shades = " .`^,:;~-_+<>i!lI/|?()1{}[]rcvunxjftzXUJCLQ0OZmwqpdbkhao*#MW&8%B@$";
 let stream;
 let request = 0;
 let hasResult = false;
 let facing = "user";
+let mode = "idle";
+let liveAscii = false;
+let clipUrl;
+let frameId;
+let lastDraw = -Infinity;
+let lastTime = -1;
+let toneRange;
+let grid;
+const fontFamily = '"DejaVu Sans Mono", "Lucida Console", monospace';
+const palette = " .·˙•°◦,:;!?^~–—_+−=×÷±≠≈≡∴∵∞∑∫√∆∇∂<>‹›«»/\\|()[]{}〈〉┆┊─│┌┐└┘├┤┬┴┼╋╱╲╳◇◆○●□■△▲▽▼☆★✦✧✶✷✹░▒▓▌▐▖▗▚▞▙▟█#%&@MW08XZ";
 
-function show(mode) {
+function show(next) {
+  mode = next;
   const live = mode === "live";
   const waiting = mode === "waiting";
+  const video = mode === "video";
   preview.hidden = !live;
-  result.hidden = !hasResult || live;
-  placeholder.hidden = !result.hidden || live;
+  preview.classList.toggle("media-source", liveAscii);
+  result.hidden = live ? !liveAscii : video ? !clip.videoWidth : !hasResult;
+  placeholder.hidden = !preview.hidden || !result.hidden;
   camera.hidden = live;
   camera.disabled = waiting;
   camera.textContent = hasResult ? "Új fotó" : "Kamera megnyitása";
   capture.hidden = !live;
+  liveArt.hidden = !live;
+  liveArt.setAttribute("aria-pressed", String(liveAscii));
+  liveArt.textContent = liveAscii ? "Normál előnézet" : "Élő ASCII";
   switchCamera.hidden = !live;
   switchCamera.textContent = facing === "user" ? "Hátlapi kamera" : "Előlapi kamera";
-  cancel.hidden = !live && !waiting;
+  cancel.hidden = !live && !waiting && !video;
   choose.hidden = live || waiting;
+  playback.hidden = !video;
+}
+
+function stopRendering() {
+  cancelAnimationFrame(frameId);
+  lastDraw = -Infinity;
+  lastTime = -1;
+  toneRange = undefined;
+}
+
+function releaseClip() {
+  if (!clipUrl) return;
+  clip.pause();
+  clip.removeAttribute("src");
+  clip.load();
+  URL.revokeObjectURL(clipUrl);
+  clipUrl = undefined;
 }
 
 function stopCamera() {
   request++;
+  stopRendering();
   stream?.getTracks().forEach(track => track.stop());
   stream = undefined;
   preview.srcObject = null;
@@ -124,11 +172,14 @@ async function startStream(target, exact, current) {
   show("live");
   capture.disabled = true;
   switchCamera.disabled = true;
+  liveArt.disabled = true;
   await preview.play();
   if (current !== request) return false;
 
   capture.disabled = false;
   switchCamera.disabled = false;
+  liveArt.disabled = false;
+  if (liveAscii) startRendering();
   capture.focus();
   return true;
 }
@@ -141,6 +192,11 @@ async function openCamera(target = facing, switching = false) {
 
   const previous = facing;
   stopCamera();
+  if (!switching) {
+    if (clipUrl) hasResult = false;
+    releaseClip();
+    liveAscii = false;
+  }
   let current = request;
   show("waiting");
   cancel.focus();
@@ -178,24 +234,61 @@ async function openCamera(target = facing, switching = false) {
   }
 }
 
-function drawAscii(source, width, height, mirror = false) {
-  const cellWidth = 10;
-  const cellHeight = 14;
-  const scale = Math.min(180 * cellWidth / width, 190 * cellHeight / height, 1);
-  const columns = Math.max(1, Math.round(width * scale / cellWidth));
-  const rows = Math.max(1, Math.round(height * scale / cellHeight));
+function makeGlyphs(width, height) {
+  const tile = document.createElement("canvas");
+  tile.width = width;
+  tile.height = height;
+  const ctx = tile.getContext("2d", {willReadFrequently: true});
+  ctx.font = `bold ${height}px ${fontFamily}`;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  const glyphs = Array.from(palette, char => {
+    ctx.clearRect(0, 0, width, height);
+    ctx.fillText(char, width / 2, height / 2);
+    const {data} = ctx.getImageData(0, 0, width, height);
+    const pixels = [];
+    let weight = 0;
+    for (let i = 0; i < width * height; i++) {
+      const alpha = data[i * 4 + 3];
+      if (alpha) {
+        pixels.push([i % width, Math.floor(i / width), alpha / 255]);
+        weight += alpha;
+      }
+    }
+    return {pixels, weight};
+  });
+  return glyphs.sort((a, b) => a.weight - b.weight);
+}
 
-  sample.width = columns;
-  sample.height = rows;
+function drawAscii(source, width, height, mirror = false, moving = false) {
+  const cellWidth = moving ? 6 : 8;
+  const cellHeight = moving ? 9 : 12;
+  const columnLimit = moving ? 168 : 264;
+  const rowLimit = moving ? 152 : 240;
+  const scale = Math.min(columnLimit / width, rowLimit * cellHeight / cellWidth / height);
+  const columns = Math.max(1, Math.round(width * scale));
+  const rows = Math.max(1, Math.round(height * scale * cellWidth / cellHeight));
+
+  if (!grid || grid.columns !== columns || grid.rows !== rows || grid.moving !== moving) {
+    sample.width = columns;
+    sample.height = rows;
+    result.width = columns * cellWidth;
+    result.height = rows * cellHeight;
+    grid = {columns, rows, moving, glyphs: makeGlyphs(cellWidth, cellHeight),
+      lightness: new Uint8Array(columns * rows), histogram: new Uint32Array(256),
+      frame: resultContext.createImageData(result.width, result.height)};
+    for (let i = 3; i < grid.frame.data.length; i += 4) grid.frame.data[i] = 255;
+  }
+
+  sampleContext.setTransform(1, 0, 0, 1, 0, 0);
   sampleContext.fillStyle = "#09070b";
   sampleContext.fillRect(0, 0, columns, rows);
   sampleContext.imageSmoothingQuality = "high";
   if (mirror) sampleContext.setTransform(-1, 0, 0, 1, columns, 0);
   sampleContext.drawImage(source, 0, 0, columns, rows);
   const {data} = sampleContext.getImageData(0, 0, columns, rows);
-
-  const lightness = new Uint8Array(columns * rows);
-  const histogram = new Uint32Array(256);
+  const {lightness, histogram, glyphs, frame} = grid;
+  histogram.fill(0);
   for (let i = 0; i < lightness.length; i++) {
     const offset = i * 4;
     const value = Math.round(.2126 * data[offset] + .7152 * data[offset + 1] + .0722 * data[offset + 2]);
@@ -213,40 +306,93 @@ function drawAscii(source, width, height, mirror = false) {
     return 255;
   }
 
-  const black = percentile(.04);
-  const white = percentile(.96);
+  let black = percentile(.04);
+  let white = percentile(.96);
+  if (moving && toneRange) {
+    black = .75 * toneRange.black + .25 * black;
+    white = .75 * toneRange.white + .25 * white;
+  }
+  if (moving) toneRange = {black, white};
   const contrast = Math.max(white - black, 80);
-  const adapt = Math.min(1, (white - black) / 65);
+  const adapt = Math.min(1, (white - black) / 65) * .65;
+  const pixels = frame.data;
+  const stride = result.width * 4;
+  for (let i = 0; i < pixels.length; i += 4) {
+    pixels[i] = 9;
+    pixels[i + 1] = 7;
+    pixels[i + 2] = 11;
+  }
 
-  result.width = columns * cellWidth;
-  result.height = rows * cellHeight;
-  resultContext.fillStyle = "#09070b";
-  resultContext.fillRect(0, 0, result.width, result.height);
-  resultContext.font = "bold 14px monospace";
-  resultContext.textAlign = "center";
-  resultContext.textBaseline = "middle";
-
-  const lift = channel => Math.min(255, Math.round(channel * 1.14 + 29));
+  const lift = channel => Math.min(255, channel * 1.12 + 31);
   for (let row = 0; row < rows; row++) {
     for (let col = 0; col < columns; col++) {
       const i = row * columns + col;
       const value = lightness[i];
       const neighbors = (lightness[col ? i - 1 : i] + lightness[col + 1 < columns ? i + 1 : i]
         + lightness[row ? i - columns : i] + lightness[row + 1 < rows ? i + columns : i]) / 4;
-      const sharpened = value + (value - neighbors) * .4;
-      const tone = (sharpened / 255) * (1 - adapt * .65) + ((sharpened - black) / contrast) * adapt * .65;
-      const index = Math.round(Math.max(0, Math.min(1, tone)) ** .82 * (shades.length - 1));
+      const sharpened = value + (value - neighbors) * .37;
+      const tone = sharpened / 255 * (1 - adapt) + (sharpened - black) / contrast * adapt;
+      const index = Math.round(Math.max(0, Math.min(1, tone)) ** .8 * (glyphs.length - 1));
       if (!index) continue;
-
-      const offset = i * 4;
-      resultContext.fillStyle = `rgb(${lift(data[offset])}, ${lift(data[offset + 1])}, ${lift(data[offset + 2])})`;
-      resultContext.fillText(shades[index], (col + .5) * cellWidth, (row + .5) * cellHeight);
+      const red = lift(data[i * 4]) - 9;
+      const green = lift(data[i * 4 + 1]) - 7;
+      const blue = lift(data[i * 4 + 2]) - 11;
+      const start = row * cellHeight * stride + col * cellWidth * 4;
+      for (const [x, y, alpha] of glyphs[index].pixels) {
+        const offset = start + y * stride + x * 4;
+        pixels[offset] = 9 + red * alpha;
+        pixels[offset + 1] = 7 + green * alpha;
+        pixels[offset + 2] = 11 + blue * alpha;
+      }
     }
   }
+  resultContext.putImageData(frame, 0, 0);
+}
+
+function finishPhoto(source, width, height, mirror = false) {
+  drawAscii(source, width, height, mirror);
   hasResult = true;
   show("idle");
   statusLine.textContent = "Elkészült az ASCII-kép.";
   camera.focus();
+}
+
+function drawVideoFrame(source) {
+  if (source.readyState < 2 || !source.videoWidth) return;
+  drawAscii(source, source.videoWidth, source.videoHeight,
+    source === preview && facing === "user", true);
+}
+
+function renderVideo(now) {
+  const source = mode === "video" ? clip : mode === "live" && liveAscii ? preview : null;
+  if (!source || source.paused || source.ended) return;
+  if (now - lastDraw >= 40 && source.currentTime !== lastTime) {
+    drawVideoFrame(source);
+    lastDraw = now;
+    lastTime = source.currentTime;
+  }
+  frameId = requestAnimationFrame(renderVideo);
+}
+
+function startRendering() {
+  stopRendering();
+  frameId = requestAnimationFrame(renderVideo);
+}
+
+function selectVideo(selected) {
+  hasResult = false;
+  play.disabled = true;
+  play.textContent = "Lejátszás";
+  seek.disabled = true;
+  seek.value = 0;
+  clipUrl = URL.createObjectURL(selected);
+  clip.muted = true;
+  sound.setAttribute("aria-pressed", "false");
+  sound.textContent = "Hang be";
+  clip.src = clipUrl;
+  show("video");
+  statusLine.textContent = "Videó betöltése…";
+  clip.play().catch(() => {});
 }
 
 camera.addEventListener("click", () => openCamera());
@@ -256,7 +402,7 @@ switchCamera.addEventListener("click", () => {
 capture.addEventListener("click", () => {
   if (preview.readyState < 2 || !preview.videoWidth) return;
   try {
-    drawAscii(preview, preview.videoWidth, preview.videoHeight, preview.dataset.mirror === "true");
+    finishPhoto(preview, preview.videoWidth, preview.videoHeight, preview.dataset.mirror === "true");
   } catch {
     show("idle");
     statusLine.textContent = "A fotót nem sikerült feldolgozni. Készíthetsz egy újat.";
@@ -266,9 +412,13 @@ capture.addEventListener("click", () => {
   }
 });
 cancel.addEventListener("click", () => {
+  const wasVideo = mode === "video";
   stopCamera();
+  if (wasVideo || liveAscii) hasResult = false;
+  releaseClip();
+  liveAscii = false;
   show("idle");
-  statusLine.textContent = "A kamera ki van kapcsolva.";
+  statusLine.textContent = wasVideo ? "A videó bezárva." : "A kamera ki van kapcsolva.";
   camera.focus();
 });
 choose.addEventListener("click", () => file.click());
@@ -276,21 +426,101 @@ file.addEventListener("change", async () => {
   const selected = file.files[0];
   file.value = "";
   if (!selected) return;
-  const current = ++request;
+  stopCamera();
+  if (clipUrl) hasResult = false;
+  releaseClip();
+  liveAscii = false;
+  if (selected.type.startsWith("video/") || /\.(mp4|webm|mov|m4v)$/i.test(selected.name)) {
+    selectVideo(selected);
+    return;
+  }
+  show("idle");
+  const current = request;
   const url = URL.createObjectURL(selected);
   const image = new Image();
   try {
     image.src = url;
     await image.decode();
-    if (current === request) drawAscii(image, image.naturalWidth, image.naturalHeight);
+    if (current === request) finishPhoto(image, image.naturalWidth, image.naturalHeight);
   } catch {
     if (current === request) statusLine.textContent = "Ez a kép nem nyitható meg. Próbálj egy JPG- vagy PNG-fájlt.";
   } finally {
     URL.revokeObjectURL(url);
   }
 });
+liveArt.addEventListener("click", () => {
+  liveAscii = !liveAscii;
+  if (liveAscii) {
+    hasResult = false;
+    drawVideoFrame(preview);
+    startRendering();
+  } else {
+    stopRendering();
+  }
+  show("live");
+});
+
+clip.addEventListener("loadeddata", () => {
+  if (mode !== "video" || !clipUrl) return;
+  drawVideoFrame(clip);
+  show("video");
+  play.disabled = false;
+  seek.disabled = !Number.isFinite(clip.duration);
+  seek.max = seek.disabled ? 0 : clip.duration;
+  statusLine.textContent = "ASCII-videó";
+});
+clip.addEventListener("playing", () => {
+  if (mode !== "video") return;
+  play.textContent = "Szünet";
+  startRendering();
+});
+clip.addEventListener("pause", () => {
+  if (mode !== "video") return;
+  stopRendering();
+  play.textContent = "Lejátszás";
+});
+clip.addEventListener("ended", () => {
+  if (mode !== "video") return;
+  stopRendering();
+  drawVideoFrame(clip);
+  play.textContent = "Újrajátszás";
+});
+clip.addEventListener("error", () => {
+  if (mode !== "video" || !clipUrl) return;
+  stopRendering();
+  releaseClip();
+  show("idle");
+  statusLine.textContent = "A böngésző nem tudta lejátszani ezt a videót. Próbálj egy MP4- vagy WebM-fájlt.";
+});
+clip.addEventListener("seeked", () => {
+  if (mode !== "video") return;
+  toneRange = undefined;
+  drawVideoFrame(clip);
+});
+clip.addEventListener("timeupdate", () => {
+  if (mode === "video" && !seek.disabled) seek.value = clip.currentTime;
+});
+seek.addEventListener("input", () => { clip.currentTime = Number(seek.value); });
+play.addEventListener("click", () => {
+  if (!clip.paused && !clip.ended) {
+    clip.pause();
+    return;
+  }
+  if (clip.ended) clip.currentTime = 0;
+  clip.play().catch(() => {
+    statusLine.textContent = "A videó nem indult el. Próbáld újra.";
+  });
+});
+sound.addEventListener("click", () => {
+  clip.muted = !clip.muted;
+  sound.setAttribute("aria-pressed", String(!clip.muted));
+  sound.textContent = clip.muted ? "Hang be" : "Hang ki";
+});
 window.addEventListener("pagehide", () => {
   stopCamera();
+  if (clipUrl || liveAscii) hasResult = false;
+  releaseClip();
+  liveAscii = false;
   show("idle");
 });
 </script>
