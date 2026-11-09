@@ -69,7 +69,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
       </svg>
       <p class="empty-title">Ready to capture</p>
       <p>Open your camera or choose a photo or video.</p>
-      <span class="empty-symbols" aria-hidden="true">[ { # % * + £ ¥ } ]</span>
+      <span class="empty-symbols" aria-hidden="true">[ { # % * + $ @ } ]</span>
     </div>
     <video id="preview" autoplay muted playsinline hidden aria-label="Live camera preview"></video>
     <video id="clip" muted playsinline preload="auto" class="media-source" aria-hidden="true"></video>
@@ -128,9 +128,13 @@ let lastTime = -1;
 let toneRange;
 let grid;
 const fontFamily = '"DejaVu Sans Mono", "Lucida Console", monospace';
-const keyboardSymbols = "[]{}#%^*+=_-\\|~<>$£¥•.,?!'";
-const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
-const palette = new Set(keyboardSymbols + letters + " .·˙•°◦,:;!?^~–—_+−=×÷±≠≈≡∴∵∞∑∫√∆∇∂<>‹›«»/\\|()[]{}〈〉┆┊─│┌┐└┘├┤┬┴┼╋╱╲╳◇◆○●□■△▲▽▼☆★✦✧✶✷✹░▒▓▌▐▖▗▚▞▙▟█#%&@08");
+const palette = [
+  "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z",
+  "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z",
+  "0", "1", "2", "3", "4", "5", "6", "7", "8", "9",
+  " ", "!", "\"", "#", "$", "%", "&", "'", "(", ")", "*", "+", ",", "-", ".", "/",
+  ":", ";", "<", "=", ">", "?", "@", "[", "\\", "]", "^", "_", "`", "{", "|", "}", "~",
+];
 
 function show(next) {
   mode = next;
