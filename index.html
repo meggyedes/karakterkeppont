@@ -21,6 +21,7 @@ button{appearance:none;border:1px solid #987183;border-radius:40px;padding:10px 
 button:hover{border-color:#ffb9ce;background:#28121c}
 button:focus-visible{outline:2px solid #ffb9ce;outline-offset:4px}
 button[aria-disabled=true]{opacity:.55;cursor:default}
+.camera-link{margin-top:8px;color:#d2a8b5;font-size:13px;text-underline-offset:4px}
 .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
 @media(max-width:600px){main{align-content:start;padding-top:12svh}.stage{overflow:hidden}canvas{width:138%;margin-left:-19%}}
 </style>
@@ -36,6 +37,7 @@ button[aria-disabled=true]{opacity:.55;cursor:default}
     <p id="message" hidden>Egy rózsa neked. Gondoltam rád.</p>
     <button id="action" type="button">Felbontom ↗</button>
   </div>
+  <a class="camera-link" href="./kamera.html">ASCII-kamera ↗</a>
 </main>
 <script>
 const canvas = document.querySelector("#art");
