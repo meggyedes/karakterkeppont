@@ -129,7 +129,8 @@ let toneRange;
 let grid;
 const fontFamily = '"DejaVu Sans Mono", "Lucida Console", monospace';
 const keyboardSymbols = "[]{}#%^*+=_-\\|~<>$£¥•.,?!'";
-const palette = new Set(keyboardSymbols + " .·˙•°◦,:;!?^~–—_+−=×÷±≠≈≡∴∵∞∑∫√∆∇∂<>‹›«»/\\|()[]{}〈〉┆┊─│┌┐└┘├┤┬┴┼╋╱╲╳◇◆○●□■△▲▽▼☆★✦✧✶✷✹░▒▓▌▐▖▗▚▞▙▟█#%&@MW08XZ");
+const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+const palette = new Set(keyboardSymbols + letters + " .·˙•°◦,:;!?^~–—_+−=×÷±≠≈≡∴∵∞∑∫√∆∇∂<>‹›«»/\\|()[]{}〈〉┆┊─│┌┐└┘├┤┬┴┼╋╱╲╳◇◆○●□■△▲▽▼☆★✦✧✶✷✹░▒▓▌▐▖▗▚▞▙▟█#%&@08");
 
 function show(next) {
   mode = next;
