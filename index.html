@@ -3,290 +3,296 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="theme-color" content="#100b12">
-<title>Karakterképpont · Egy levél neked</title>
+<meta name="theme-color" content="#09070b">
+<title>ASCII-kamera · Karakterképpont</title>
 <style>
 [hidden]{display:none!important}
 :root{color-scheme:dark;background:#09070b;color:#fcece9;font-family:system-ui,sans-serif}
 *{box-sizing:border-box}
 body{margin:0}
-main{width:min(1120px,100%);min-height:100svh;margin:auto;display:grid;align-content:center;justify-items:center;text-align:center;padding:24px 0 32px}
-h1{margin:0;font:400 clamp(35px,6vw,72px)/1 Georgia,serif;letter-spacing:-.055em}
-.stage{width:100%;position:relative}
-canvas{display:block;width:100%;height:auto;touch-action:manipulation}
-canvas[data-idle="true"]{cursor:pointer}
-.controls{display:grid;justify-items:center;gap:14px;padding:0 14px;min-height:104px}
-#message{margin:0;font:italic clamp(23px,4vw,38px)/1.05 Georgia,serif;color:#ffb9ce}
-button{appearance:none;border:1px solid #987183;border-radius:40px;padding:10px 20px;background:#09070b;color:inherit;font:600 13px system-ui;cursor:pointer}
-button:hover{border-color:#ffb9ce;background:#28121c}
-button:focus-visible{outline:2px solid #ffb9ce;outline-offset:4px}
-button[aria-disabled=true]{opacity:.55;cursor:default}
-.camera-link{margin-top:8px;color:#d2a8b5;font-size:13px;text-underline-offset:4px}
-.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
-@media(max-width:600px){main{align-content:start;padding-top:12svh}.stage{overflow:hidden}canvas{width:138%;margin-left:-19%}}
+main{width:min(820px,100% - 32px);margin:auto;padding:24px 0 36px}
+header{margin-bottom:18px;text-align:center}
+.secondary{color:#d2a8b5;font-size:13px;text-underline-offset:4px}
+h1{margin:12px 0 5px;font:400 clamp(38px,7vw,66px)/1 Georgia,serif;letter-spacing:-.055em}
+p{margin:0;color:#c7a6b2;font-size:14px}
+.stage{min-height:170px;display:grid;place-items:center;background:#100c13;border:1px solid #38252e;border-radius:12px;overflow:hidden;margin-bottom:15px}
+.stage:has(canvas:not([hidden])){background:#09070b}
+video,canvas{display:block;width:100%;height:auto;max-height:63svh;object-fit:contain}
+video[data-mirror=true]{transform:scaleX(-1)}
+.placeholder{text-align:center;padding:22px;color:#a17d8a}
+.placeholder span{display:block;margin-bottom:7px;color:#ffb5c9;font:700 26px ui-monospace,monospace;letter-spacing:.16em}
+.controls{display:flex;align-items:center;gap:10px 16px;flex-wrap:wrap}
+button{appearance:none;border:1px solid #ffc1d0;border-radius:40px;padding:10px 17px;background:#ffc1d0;color:#24111c;font:650 13px system-ui;cursor:pointer}
+button:hover{background:#ffdae3}
+button:disabled{opacity:.55;cursor:default}
+button.secondary{border:0;border-radius:0;padding:7px 0;background:none;font-weight:500;text-decoration:underline}
+button:focus-visible{outline:2px solid #ffc1d0;outline-offset:4px}
+#status{margin-top:12px;min-height:1.4em}
 </style>
 </head>
 <body>
 <main>
-  <h1>Egy levél neked</h1>
+  <header>
+    <h1>ASCII-kamera</h1>
+    <p>Egy fotó, karakterekből újrarajzolva.</p>
+  </header>
   <div class="stage">
-    <span id="state" class="sr-only" role="status">Lezárva</span>
-    <canvas id="art" width="920" height="480" data-idle="true" role="img" aria-label="Aranyszínű boríték, közepén rózsaszín szívvel"></canvas>
+    <p id="placeholder" class="placeholder"><span aria-hidden="true">[ # @ ]</span>Itt jelenik meg a kép.</p>
+    <video id="preview" autoplay muted playsinline hidden aria-label="A kamera élőképe"></video>
+    <canvas id="result" hidden role="img" aria-label="A fotóból készített színes ASCII-kép"></canvas>
   </div>
   <div class="controls">
-    <p id="message" hidden>Egy rózsa neked. Gondoltam rád.</p>
-    <button id="action" type="button">Felbontom ↗</button>
+    <button id="camera" type="button">Kamera megnyitása</button>
+    <button id="capture" type="button" hidden>Fotó készítése</button>
+    <button id="switch" type="button" class="secondary" hidden>Kameraváltás</button>
+    <button id="cancel" type="button" class="secondary" hidden>Bezárás</button>
+    <button id="choose" type="button" class="secondary">Kép kiválasztása</button>
+    <input id="file" type="file" accept="image/*" hidden>
   </div>
-  <a class="camera-link" href="./kamera.html">ASCII-kamera ↗</a>
+  <p id="status" role="status">A fotó a böngésződben marad.</p>
 </main>
 <script>
-const canvas = document.querySelector("#art");
-const ctx = canvas.getContext("2d");
-const action = document.querySelector("#action");
-const state = document.querySelector("#state");
-const message = document.querySelector("#message");
-const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
+const preview = document.querySelector("#preview");
+const result = document.querySelector("#result");
+const placeholder = document.querySelector("#placeholder");
+const camera = document.querySelector("#camera");
+const capture = document.querySelector("#capture");
+const switchCamera = document.querySelector("#switch");
+const cancel = document.querySelector("#cancel");
+const choose = document.querySelector("#choose");
+const file = document.querySelector("#file");
+const statusLine = document.querySelector("#status");
 
-const columns = 92;
-const rows = 40;
-const cellWidth = 10;
-const cellHeight = 12;
-const center = 45.5;
-const paper = [];
-const rose = [];
-const stars = [];
-const sparks = [];
-const halo = [];
-const confetti = [];
-const fireworks = [];
-let seed = 143;
-let phase = "sealed";
-let startedAt = 0;
-let frameId;
+const sample = document.createElement("canvas");
+const sampleContext = sample.getContext("2d", {willReadFrequently: true});
+const resultContext = result.getContext("2d");
+const shades = " .`^,:;~-_+<>i!lI/|?()1{}[]rcvunxjftzXUJCLQ0OZmwqpdbkhao*#MW&8%B@$";
+let stream;
+let request = 0;
+let hasResult = false;
+let facing = "user";
 
-function random() {
-  seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
-  return seed / 4294967296;
+function show(mode) {
+  const live = mode === "live";
+  const waiting = mode === "waiting";
+  preview.hidden = !live;
+  result.hidden = !hasResult || live;
+  placeholder.hidden = !result.hidden || live;
+  camera.hidden = live;
+  camera.disabled = waiting;
+  camera.textContent = hasResult ? "Új fotó" : "Kamera megnyitása";
+  capture.hidden = !live;
+  switchCamera.hidden = !live;
+  switchCamera.textContent = facing === "user" ? "Hátlapi kamera" : "Előlapi kamera";
+  cancel.hidden = !live && !waiting;
+  choose.hidden = live || waiting;
 }
 
-function glyph(chars) {
-  return chars[Math.floor(random() * chars.length)];
+function stopCamera() {
+  request++;
+  stream?.getTracks().forEach(track => track.stop());
+  stream = undefined;
+  preview.srcObject = null;
 }
 
-function draw(x, y, char, color, opacity = 1) {
-  ctx.globalAlpha = Math.max(0, Math.min(1, opacity));
-  ctx.fillStyle = color;
-  ctx.fillText(char, x * cellWidth + cellWidth / 2, y * cellHeight + cellHeight / 2);
+async function startStream(target, exact, current) {
+  const incoming = await navigator.mediaDevices.getUserMedia({
+    video: {
+      facingMode: exact ? {exact: target} : {ideal: target},
+      width: {ideal: 1920},
+      height: {ideal: 1080},
+    },
+    audio: false,
+  });
+  if (current !== request) {
+    incoming.getTracks().forEach(track => track.stop());
+    return false;
+  }
+
+  stream = incoming;
+  const track = stream.getVideoTracks()[0];
+  const reportedFacing = track.getSettings().facingMode;
+  facing = ["user", "environment"].includes(reportedFacing) ? reportedFacing : target;
+  track.addEventListener("ended", () => {
+    if (current !== request) return;
+    stopCamera();
+    show("idle");
+    statusLine.textContent = "A kamera leállt. Újra megnyithatod vagy választhatsz egy képet.";
+  }, {once: true});
+  preview.dataset.mirror = String(facing === "user");
+  preview.srcObject = stream;
+  show("live");
+  capture.disabled = true;
+  switchCamera.disabled = true;
+  await preview.play();
+  if (current !== request) return false;
+
+  capture.disabled = false;
+  switchCamera.disabled = false;
+  capture.focus();
+  return true;
 }
 
-function ellipse(x, y, cx, cy, rx, ry, tilt = 0) {
-  const dx = x - cx;
-  const dy = y - cy;
-  return ((dx * Math.cos(tilt) + dy * Math.sin(tilt)) / rx) ** 2
-    + ((dy * Math.cos(tilt) - dx * Math.sin(tilt)) / ry) ** 2;
-}
+async function openCamera(target = facing, switching = false) {
+  if (!navigator.mediaDevices?.getUserMedia) {
+    statusLine.textContent = "Itt nem érhető el a kamera. A Kép kiválasztása gombbal egy meglévő fotót használhatsz.";
+    return;
+  }
 
-const petals = [
-  [45, 13, 11, 8.9, 0, "#a8264c"],
-  [40, 10, 7.3, 5.4, .45, "#e04e6a"],
-  [51, 10, 7.1, 5.3, -.39, "#c13058"],
-  [46, 8.5, 7.2, 4.3, -.16, "#ef6580"],
-  [44.5, 9.2, 4.6, 2.8, .13, "#982041"],
-  [46, 9, 2.8, 1.35, -.23, "#ff9ca6"],
-  [51, 13.8, 6.8, 4, -.58, "#e04465"],
-  [40, 14.5, 6.9, 3.6, .61, "#ca3155"],
-  [46, 17, 7.8, 3.6, -.13, "#bc244b"],
-];
+  const previous = facing;
+  stopCamera();
+  let current = request;
+  show("waiting");
+  cancel.focus();
+  statusLine.textContent = switching ? "Kameraváltás…" : "Engedélyezd a kamera használatát a böngészőben.";
+  try {
+    if (await startStream(target, switching, current)) {
+      statusLine.textContent = facing === "environment" ? "Hátlapi kamera" : "Előlapi kamera";
+    }
+    return;
+  } catch (error) {
+    if (current !== request) return;
+    stopCamera();
 
-for (let y = 0; y < rows; y++) {
-  for (let x = 0; x < columns; x++) {
-    const dx = x - center;
-    const heartX = dx / 22;
-    const heartY = (20 - y) / 16;
-    const heart = (heartX ** 2 + heartY ** 2 - 1) ** 3 - heartX ** 2 * heartY ** 3;
-    if (Math.abs(heart) < .11 && Math.hypot(heartX, heartY) > .76) {
-      halo.push({x, y, char: glyph("+*:·"), color: glyph(["#fe4d84", "#ff86af", "#ffd096"])});
-    }
-    if (x >= 15 && x <= 76 && y >= 7 && y <= 33) {
-      const border = x === 15 || x === 76 || y === 7 || y === 33;
-      const fold = Math.abs(y - (24 - Math.abs(dx) * .46)) < .95
-        || Math.abs(y - (20 + Math.abs(dx) * .43)) < .6;
-      const hx = dx / 7.2;
-      const hy = (22 - y) / 5.5;
-      const seal = (hx * hx + hy * hy - 1) ** 3 - hx * hx * hy ** 3 < 0;
-      paper.push({
-        x, y,
-        char: seal ? glyph("@%#") : border ? glyph("/+=") : fold ? glyph("/:.") : glyph("#&%@+"),
-        color: seal ? glyph(["#ff91ae", "#ff5d89", "#d74e75"]) : fold ? "#634039"
-          : glyph(["#efb089", "#ce8c69", "#a86651", "#e4a27d"]),
-        ignition: .23 + Math.hypot(dx * .57, y - 22) * .063 + random() * .15,
-        vx: dx * .87 + (random() - .5) * 29,
-        vy: -6 - random() * 24,
-      });
-    }
-
-    let pixel;
-    const stemX = 46 - (y - 20) * .17;
-    if (y >= 19 && y <= 36 && Math.abs(x - stemX) < 1.12) {
-      pixel = {char: glyph("|/!"), color: "#86ac79"};
-    }
-    const leaf = Math.min(ellipse(x, y, 39, 27, 7, 2.3, .37),
-                          ellipse(x, y, 51, 29, 6, 2.1, -.52));
-    if (leaf < 1) {
-      pixel = {char: glyph(leaf < .55 ? "%#&" : "+:."), color: leaf < .55 ? "#75ad87" : "#527d65"};
-    }
-    for (const [cx, cy, rx, ry, tilt, color] of petals) {
-      const edge = ellipse(x, y, cx, cy, rx, ry, tilt);
-      if (edge < 1) {
-        pixel = {char: glyph(edge < .69 ? "@#%&" : "o*+:"), color: edge > .83 ? "#fa8295" : color};
+    if (switching) {
+      current = request;
+      show("waiting");
+      try {
+        if (await startStream(previous, false, current)) {
+          statusLine.textContent = target === "environment"
+            ? "A hátlapi kamera nem érhető el ezen az eszközön."
+            : "Az előlapi kamera nem érhető el ezen az eszközön.";
+        }
+        return;
+      } catch {
+        if (current !== request) return;
+        stopCamera();
       }
     }
-    if (pixel) rose.push({x: center + dx * 1.48, y: 20 + (y - 20) * 1.13, ...pixel, reveal: random() * .43 + Math.abs(dx) * .009 + y * .015});
+
+    show("idle");
+    camera.focus();
+    statusLine.textContent = error.name === "NotAllowedError"
+      ? "A kameraengedély hiányzik. Engedélyezd a böngészőben, vagy válassz egy képet."
+      : "A kamera most nem indítható. Próbáld újra, vagy válassz egy képet.";
   }
 }
 
-for (let i = 0; i < 146; i++) {
-  stars.push({x: random() * columns, y: random() * rows, char: glyph("...+·"),
-    offset: random() * 7, color: glyph(["#ffb899", "#c4809d", "#9d90c6"])});
-}
-for (let i = 0; i < 220; i++) {
-  sparks.push({x: center + (random() - .5) * 10, y: 22, vx: (random() - .5) * 105,
-    vy: -5 - random() * 29, delay: random() * 1.6, life: .35 + random() * .75});
-}
+function drawAscii(source, width, height, mirror = false) {
+  const cellWidth = 10;
+  const cellHeight = 14;
+  const scale = Math.min(180 * cellWidth / width, 190 * cellHeight / height, 1);
+  const columns = Math.max(1, Math.round(width * scale / cellWidth));
+  const rows = Math.max(1, Math.round(height * scale / cellHeight));
 
-for (let i = 0; i < 55; i++) {
-  confetti.push({x: 13 + random() * 66, y: random() * rows, speed: 1 + random() * 3,
-    offset: random() * 8, char: glyph(["♥", "♥", "✦", "·"]), color: glyph(["#ff3577", "#ff8eb3", "#ffc37c"])});
-}
+  sample.width = columns;
+  sample.height = rows;
+  sampleContext.fillStyle = "#09070b";
+  sampleContext.fillRect(0, 0, columns, rows);
+  sampleContext.imageSmoothingQuality = "high";
+  if (mirror) sampleContext.setTransform(-1, 0, 0, 1, columns, 0);
+  sampleContext.drawImage(source, 0, 0, columns, rows);
+  const {data} = sampleContext.getImageData(0, 0, columns, rows);
 
-for (const [x, y, delay] of [[23, 13, 1.08], [68, 11, 1.33], [27, 26, 1.65], [64, 24, 1.84]]) {
-  for (let i = 0; i < 54; i++) {
-    const angle = i / 54 * Math.PI * 2;
-    const speed = 8 + random() * 19;
-    fireworks.push({x, y, delay, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed * .78,
-      color: glyph(["#ffd494", "#ff9e98", "#ff4a8c", "#fff1d2"])});
-  }
-}
-
-function render(now) {
-  const elapsed = (now - startedAt) / 1000;
-  ctx.globalAlpha = 1;
-  ctx.save();
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  const glow = ctx.createRadialGradient(460, 232, 12, 460, 232, 340);
-  const flare = phase === "burning" ? Math.max(0, 1 - Math.abs(elapsed - .33) / .24) : 0;
-  glow.addColorStop(0, flare ? `rgb(${51 + flare * 145} ${14 + flare * 62} ${33 + flare * 40})`
-    : phase === "sealed" ? "#23151c" : "#380b24");
-  glow.addColorStop(1, "#09070b");
-  ctx.fillStyle = glow;
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-  ctx.font = "bold 15px ui-monospace, monospace";
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-
-  for (const star of stars) {
-    const pulse = reducedMotion.matches ? .43 : .32 + .22 * Math.sin(now / 510 + star.offset);
-    draw(star.x, star.y, star.char, star.color, pulse);
+  const lightness = new Uint8Array(columns * rows);
+  const histogram = new Uint32Array(256);
+  for (let i = 0; i < lightness.length; i++) {
+    const offset = i * 4;
+    const value = Math.round(.2126 * data[offset] + .7152 * data[offset + 1] + .0722 * data[offset + 2]);
+    lightness[i] = value;
+    histogram[value]++;
   }
 
-  if (phase === "burning" && elapsed < .72) {
-    const shake = Math.max(0, .72 - elapsed) * 15;
-    ctx.translate(Math.sin(elapsed * 92) * shake, Math.cos(elapsed * 77) * shake * .6);
+  function percentile(fraction) {
+    const threshold = lightness.length * fraction;
+    let count = 0;
+    for (let value = 0; value < histogram.length; value++) {
+      count += histogram[value];
+      if (count >= threshold) return value;
+    }
+    return 255;
   }
 
-  if (phase !== "open") {
-    for (const cell of paper) {
-      const age = phase === "sealed" ? -1 : elapsed - cell.ignition;
-      if (age < 0) {
-        draw(cell.x, cell.y, cell.char, cell.color);
-      } else if (age < .12) {
-        draw(cell.x, cell.y, cell.char, age < .05 ? "#fff4c5" : "#ff691f");
-      } else if (age < .86) {
-        const flight = age - .12;
-        draw(cell.x + cell.vx * flight, cell.y + cell.vy * flight + 18 * flight ** 2,
-          age < .35 ? "*" : ".", age < .35 ? "#ffcf83" : "#ff475d", 1 - age / .86);
-      }
+  const black = percentile(.04);
+  const white = percentile(.96);
+  const contrast = Math.max(white - black, 80);
+  const adapt = Math.min(1, (white - black) / 65);
+
+  result.width = columns * cellWidth;
+  result.height = rows * cellHeight;
+  resultContext.fillStyle = "#09070b";
+  resultContext.fillRect(0, 0, result.width, result.height);
+  resultContext.font = "bold 14px monospace";
+  resultContext.textAlign = "center";
+  resultContext.textBaseline = "middle";
+
+  const lift = channel => Math.min(255, Math.round(channel * 1.14 + 29));
+  for (let row = 0; row < rows; row++) {
+    for (let col = 0; col < columns; col++) {
+      const i = row * columns + col;
+      const value = lightness[i];
+      const neighbors = (lightness[col ? i - 1 : i] + lightness[col + 1 < columns ? i + 1 : i]
+        + lightness[row ? i - columns : i] + lightness[row + 1 < rows ? i + columns : i]) / 4;
+      const sharpened = value + (value - neighbors) * .4;
+      const tone = (sharpened / 255) * (1 - adapt * .65) + ((sharpened - black) / contrast) * adapt * .65;
+      const index = Math.round(Math.max(0, Math.min(1, tone)) ** .82 * (shades.length - 1));
+      if (!index) continue;
+
+      const offset = i * 4;
+      resultContext.fillStyle = `rgb(${lift(data[offset])}, ${lift(data[offset + 1])}, ${lift(data[offset + 2])})`;
+      resultContext.fillText(shades[index], (col + .5) * cellWidth, (row + .5) * cellHeight);
     }
   }
-
-  if (phase === "burning") {
-    for (const fire of fireworks) {
-      const age = elapsed - fire.delay;
-      if (age < 0 || age > .95) continue;
-      const travel = 1 - Math.exp(-age * 2.8);
-      draw(fire.x + fire.vx * travel, fire.y + fire.vy * travel + 5 * age ** 2,
-        age < .36 ? "✦" : "·", fire.color, 1 - age / .95);
-    }
-    for (const spark of sparks) {
-      const age = elapsed - spark.delay;
-      if (age >= 0 && age < spark.life) {
-        draw(spark.x + spark.vx * age, spark.y + spark.vy * age + 9 * age ** 2,
-          age < .24 ? "+" : ".", "#ff9b79", 1 - age / spark.life);
-      }
-    }
-  }
-
-  if (phase !== "sealed") {
-    const reveal = phase === "open" ? 1 : Math.max(0, Math.min(1, (elapsed - 1.48) * 1.15));
-    const motion = !reducedMotion.matches;
-    const scale = phase === "burning" ? 1 - (1 - reveal) * .36 : 1;
-    for (const dot of halo) {
-      const pulse = motion ? .55 + .3 * Math.sin(now / 400 - dot.y / 3) : .65;
-      draw(dot.x, dot.y, dot.char, dot.color, reveal * pulse);
-    }
-    for (const piece of confetti) {
-      const drift = motion ? now / 1000 * piece.speed : 0;
-      const y = ((piece.y - drift) % rows + rows) % rows;
-      const x = piece.x + (motion ? Math.sin(drift / 3 + piece.offset) * 2 : 0);
-      draw(x, y, piece.char, piece.color, reveal * .48);
-    }
-    ctx.shadowColor = "#ff3678";
-    ctx.shadowBlur = 8;
-    for (const pixel of rose) {
-      const opacity = phase === "open" ? 1 : (elapsed - 1.48 - pixel.reveal) * 3.8;
-      if (opacity > 0) {
-        draw(center + (pixel.x - center) * scale, 22 + (pixel.y - 22) * scale,
-          pixel.char, pixel.color, opacity);
-      }
-    }
-  }
-  ctx.restore();
+  hasResult = true;
+  show("idle");
+  statusLine.textContent = "Elkészült az ASCII-kép.";
+  camera.focus();
 }
 
-function setPhase(next) {
-  phase = next;
-  canvas.dataset.idle = String(next === "sealed");
-  action.setAttribute("aria-disabled", String(next === "burning"));
-  action.textContent = {sealed: "Felbontom ↗", burning: "Épp felnyílik…", open: "Újrajátszás ↻"}[next];
-  state.textContent = {sealed: "Lezárva", burning: "Felbontás", open: "Felbontva"}[next];
-  message.hidden = next !== "open";
-  if (next === "open") canvas.setAttribute("aria-label", "Vörös rózsa zöld levelekkel, karakterekből rajzolva");
-  if (next === "sealed") canvas.setAttribute("aria-label", "Aranyszínű boríték, közepén rózsaszín szívvel");
-}
-
-function tick(now) {
-  if (phase === "burning" && (now - startedAt > 3050 || reducedMotion.matches)) setPhase("open");
-  render(now);
-  if (!reducedMotion.matches) frameId = requestAnimationFrame(tick);
-}
-
-function play() {
-  if (phase === "burning") return;
-  cancelAnimationFrame(frameId);
-  startedAt = performance.now();
-  setPhase(reducedMotion.matches ? "open" : "burning");
-  tick(startedAt);
-}
-
-action.addEventListener("click", play);
-canvas.addEventListener("click", () => {
-  if (phase === "sealed") play();
+camera.addEventListener("click", () => openCamera());
+switchCamera.addEventListener("click", () => {
+  openCamera(facing === "user" ? "environment" : "user", true);
 });
-reducedMotion.addEventListener("change", () => {
-  cancelAnimationFrame(frameId);
-  tick(performance.now());
+capture.addEventListener("click", () => {
+  if (preview.readyState < 2 || !preview.videoWidth) return;
+  try {
+    drawAscii(preview, preview.videoWidth, preview.videoHeight, preview.dataset.mirror === "true");
+  } catch {
+    show("idle");
+    statusLine.textContent = "A fotót nem sikerült feldolgozni. Készíthetsz egy újat.";
+    camera.focus();
+  } finally {
+    stopCamera();
+  }
 });
-tick(performance.now());
+cancel.addEventListener("click", () => {
+  stopCamera();
+  show("idle");
+  statusLine.textContent = "A kamera ki van kapcsolva.";
+  camera.focus();
+});
+choose.addEventListener("click", () => file.click());
+file.addEventListener("change", async () => {
+  const selected = file.files[0];
+  file.value = "";
+  if (!selected) return;
+  const current = ++request;
+  const url = URL.createObjectURL(selected);
+  const image = new Image();
+  try {
+    image.src = url;
+    await image.decode();
+    if (current === request) drawAscii(image, image.naturalWidth, image.naturalHeight);
+  } catch {
+    if (current === request) statusLine.textContent = "Ez a kép nem nyitható meg. Próbálj egy JPG- vagy PNG-fájlt.";
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+});
+window.addEventListener("pagehide", () => {
+  stopCamera();
+  show("idle");
+});
 </script>
 </body>
 </html>
